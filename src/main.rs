@@ -3,6 +3,7 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
+#![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
 
@@ -13,19 +14,32 @@ fn panic(_info: &PanicInfo) -> ! {
 }
 
 mod vga_buffer;
+mod interrupts;
 
+pub fn init() {
+    interrupts::init_idt();
+}
+
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! { 
-    println!("Finally! Hello, world{}", "!");
+    println!("Hello, world{}", "!");
+
+    init();
+
+    // invoke a breakpoint exception
+    x86_64::instructions::interrupts::int3();
 
     #[cfg(test)]
     test_main();
 
+    println!("It did not crash!");
     loop {}
 }
 
 #[cfg(test)]
 pub fn test_runner(tests: &[&dyn Fn()]) {
+    init();
     println!("Running {} tests", tests.len());
     for test in tests {
         test();
@@ -37,4 +51,9 @@ fn trivial_assertion() {
     print!("trivial assertion... ");
     assert_eq!(1, 1);
     println!("[ok]");
+}
+
+#[test_case]
+fn test_breakpoint_exception() {
+    x86_64::instructions::interrupts::int3();
 }
